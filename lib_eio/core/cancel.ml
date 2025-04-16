@@ -193,6 +193,10 @@ let sub_unchecked purpose fn =
 module Fiber_context = struct
   type t = fiber_context
 
+  let context_key : t Picos.Fiber.FLS.t = Picos.Fiber.FLS.create ()
+
+  let vars_key : Hmap.t Picos.Fiber.FLS.t = Picos.Fiber.FLS.create ()
+
   let tid t = t.tid
   let cancellation_context t = t.cancel_context
 

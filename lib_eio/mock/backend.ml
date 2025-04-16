@@ -60,7 +60,8 @@ let run_full main =
   end in
   let t = { run_q = Lf_queue.create (); mono_clock } in
   let rec fork ~new_fiber:fiber fn =
-    Trace.fiber (Fiber_context.tid fiber);
+    let fiber : Picos.Fiber.t = fiber in
+    (* Trace.fiber (Fiber_context.tid fiber); *)
     (* Create a new fiber and run [fn] in it. *)
     Effect.Deep.match_with fn ()
       { retc = (fun () -> Fiber_context.destroy fiber; schedule t);
@@ -71,31 +72,32 @@ let run_full main =
           );
         effc = fun (type a) (e : a Effect.t) : ((a, exit) Effect.Deep.continuation -> exit) option ->
           match e with
-          | Eio.Private.Effects.Suspend f -> Some (fun k ->
+          | Picos.Trigger.Await trigger -> Some (fun k ->
               let k = { Suspended.k; fiber } in
               (* Ask [f] to register whatever callbacks are needed to resume the fiber.
                  e.g. it might register a callback with a promise, for when that's resolved. *)
-              f fiber (fun result ->
-                  (* The fiber is ready to run again. Add it to the queue. *)
-                  Lf_queue.push t.run_q (fun () ->
-                      (* Resume the fiber. *)
-                      Fiber_context.clear_cancel_fn fiber;
-                      match result with
-                      | Ok v -> Suspended.continue k v
-                      | Error ex -> Suspended.discontinue k ex
-                    )
-                );
+              let f = Picos.Fiber.try_suspend fiber trigger fiber k in
+              (* f fiber (fun result -> *)
+              (*     (* The fiber is ready to run again. Add it to the queue. *) *)
+              (*     Lf_queue.push t.run_q (fun () -> *)
+              (*         (* Resume the fiber. *) *)
+              (*         Fiber_context.clear_cancel_fn fiber; *)
+              (*         match result with *)
+              (*         | Ok v -> Suspended.continue k v *)
+              (*         | Error ex -> Suspended.discontinue k ex *)
+              (*       ) *)
+              (*   ); *)
               (* Switch to the next runnable fiber while this one's blocked. *)
               schedule t
-            )
-          | Eio.Private.Effects.Fork (new_fiber, f) -> Some (fun k ->
+          )
+          | Picos.Fiber.Spawn new_fiber -> Some (fun k ->
               let k = { Suspended.k; fiber } in
               (* Arrange for the forking fiber to run immediately after the new one. *)
               Lf_queue.push_head t.run_q (Suspended.continue k);
               (* Create and run the new fiber (using fiber context [new_fiber]). *)
               fork ~new_fiber f
             )
-          | Eio.Private.Effects.Get_context -> Some (fun k ->
+          | Picos.Fiber.Current -> Some (fun k ->
               Effect.Deep.continue k fiber
             )
           | _ -> None

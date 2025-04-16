@@ -1,78 +1,45 @@
 [@@@alert "-unstable"]
 
-type _ Effect.t += Fork : Cancel.fiber_context * (unit -> unit) -> unit Effect.t
-
-let yield () =
-  let fiber = Suspend.enter "" (fun fiber enqueue -> enqueue (Ok fiber)) in
-  Cancel.check fiber.cancel_context
+let yield () = Picos.Fiber.yield ()
 
 (* Note: [f] must not raise an exception, as that would terminate the whole scheduler. *)
 let fork_raw new_fiber f =
-  Effect.perform (Fork (new_fiber, f))
+  Picos.Fiber.spawn new_fiber (fun _ -> f ())
 
 let fork ~sw f =
-  Switch.check_our_domain sw;
-  if Cancel.is_on sw.cancel then (
-    let vars = Cancel.Fiber_context.get_vars () in
-    let new_fiber = Cancel.Fiber_context.make ~cc:sw.cancel ~vars in
-    fork_raw new_fiber @@ fun () ->
-    Switch.with_op sw @@ fun () ->
-    try
-      f ()
-    with ex ->
-      let bt = Printexc.get_raw_backtrace () in
-      Switch.fail ~bt sw ex;  (* The [with_op] ensures this will succeed *)
-  ) (* else the fiber should report the error to [sw], but [sw] is failed anyway *)
+  Picos_std_structured.Bundle.fork (Switch.bundle sw) f
 
 let fork_daemon ~sw f =
-  Switch.check_our_domain sw;
-  if Cancel.is_on sw.cancel then (
-    let vars = Cancel.Fiber_context.get_vars () in
-    let new_fiber = Cancel.Fiber_context.make ~cc:sw.cancel ~vars in
-    fork_raw new_fiber @@ fun () ->
-    Switch.with_daemon sw @@ fun () ->
-    match f () with
-    | `Stop_daemon ->
-      (* The daemon asked to stop. *)
-      ()
-    | exception Cancel.Cancelled Exit when not (Cancel.is_on sw.cancel) ->
-      (* The daemon was cancelled because all non-daemon fibers are finished. *)
-      ()
-    | exception ex ->
-      let bt = Printexc.get_raw_backtrace () in
-      Switch.fail ~bt sw ex;  (* The [with_daemon] ensures this will succeed *)
-  ) (* else the fiber should report the error to [sw], but [sw] is failed anyway *)
+  let open Picos_std_finally in
+  let@ _daemon =
+    Picos_std_finally.finally Picos_std_structured.Promise.terminate @@ fun () ->
+    Picos_std_structured.Bundle.fork_as_promise (Switch.bundle sw) (fun _ -> let `Stop_daemon = f () in ()) 
+  in
+  ()
 
 let fork_promise ~sw f =
-  Switch.check_our_domain sw;
-  let vars = Cancel.Fiber_context.get_vars () in
-  let new_fiber = Cancel.Fiber_context.make ~cc:sw.Switch.cancel ~vars in
-  let p, r = Promise.create_with_id (Cancel.Fiber_context.tid new_fiber) in
-  fork_raw new_fiber (fun () ->
-      match Switch.with_op sw f with
-      | x -> Promise.resolve_ok r x
-      | exception ex -> Promise.resolve_error r ex        (* Can't fail; only we have [r] *)
-    );
-  p
+  let picos = Picos_std_structured.Bundle.fork_as_promise (Switch.bundle sw) f in
+  Promise.to_public_promise Promise.{ id = Trace.mint_id (); state = Obj.magic picos } 
 
 (* This is not exposed. On failure it fails [sw], but you need to make sure that
    any fibers waiting on the promise will be cancelled. *)
 let fork_promise_exn ~sw f =
-  Switch.check_our_domain sw;
+  (* TODO: Switch.check_our_domain sw; *)
+  let sw = Switch.bundle sw in
   let vars = Cancel.Fiber_context.get_vars () in
-  let new_fiber = Cancel.Fiber_context.make ~cc:sw.Switch.cancel ~vars in
-  let p, r = Promise.create_with_id (Cancel.Fiber_context.tid new_fiber) in
+  let comp = Picos.Computation.create () in
+  let new_fiber = Picos.Fiber.create ~forbid:false comp in
+  Picos.Fiber.FLS.set new_fiber Cancel.Fiber_context.vars_key vars;
+  let p, r = Promise.create_with_id (Trace.mint_id ()) (* (Cancel.Fiber_context.tid new_fiber) *) in
   fork_raw new_fiber (fun () ->
-      match Switch.with_op sw f with
+      match f sw with
       | x -> Promise.resolve r x
       | exception ex ->
         let bt = Printexc.get_raw_backtrace () in
-        Switch.fail ~bt sw ex  (* The [with_op] ensures this will succeed *)
+        Picos_std_structured.Bundle.error sw ex bt 
     );
   p
 
-(* Like [List.iter (fork ~sw)], but runs the last one in the current fiber
-   for efficiency and less cluttered traces. *)
 let rec forks ~sw = function
   | [] -> ()
   | [x] -> Switch.check sw; x ()
@@ -89,10 +56,10 @@ let both f g =
   forks ~sw [f; g]
 
 let pair f g =
-  Switch.run ~name:"pair" @@ fun sw ->
+  Switch.run @@ fun sw ->
   let x = fork_promise ~sw f in
   let y = g () in
-  (Promise.await_exn x, y)
+  (Promise.await x, y)
 
 exception Not_first
 
@@ -136,8 +103,10 @@ let any_gen ~return ~combine fs =
           | [] -> await_cancel ()
           | [f] -> wrap f; []
           | f :: fs ->
-            let new_fiber = Cancel.Fiber_context.make ~cc ~vars in
-            let p, r = Promise.create_with_id (Cancel.Fiber_context.tid new_fiber) in
+            let comp = Picos.Computation.create () in
+            let new_fiber = Picos.Fiber.create ~forbid:false comp in
+            Picos.Fiber.FLS.set new_fiber Cancel.Fiber_context.vars_key vars;
+            let p, r = Promise.create_with_id (Trace.mint_id ()) (* (Cancel.Fiber_context.tid new_fiber) *) in
             fork_raw new_fiber (fun () ->
                 match wrap f with
                 | () -> Promise.resolve_ok r ()
@@ -205,7 +174,7 @@ module List = struct
     type t = {
       mutable free_fibers : int;
       cond : unit Single_waiter.t;
-      sw : Switch.t;
+      sw : Switch.t
     }
 
     let max_fibers_err n =
@@ -220,7 +189,7 @@ module List = struct
       }
 
     let await_free t =
-      if t.free_fibers = 0 then Single_waiter.await t.cond "Limiter.await_free" t.sw.cancel.id;
+      if t.free_fibers = 0 then Single_waiter.await t.cond "Limiter.await_free" (Trace.mint_id ()) (* t.sw.cancel.id *);
       (* If we got woken up then there was a free fiber then. And since we're the
          only fiber that uses [t], and we were sleeping, it must still be free. *)
       assert (t.free_fibers > 0);
@@ -238,7 +207,7 @@ module List = struct
 
     let fork_promise_exn t fn x =
       await_free t;
-      fork_promise_exn ~sw:t.sw (fun () -> let r = fn x in release t; r)
+      fork_promise_exn ~sw:t.sw (fun _ -> let r = fn x in release t; r)
 
     let fork t fn x =
       await_free t;
@@ -249,7 +218,7 @@ module List = struct
     match items with
     | [] -> []    (* Avoid creating a switch in the simple case *)
     | items ->
-      Switch.run ~name:"filter_map" @@ fun sw ->
+      Switch.run @@ fun sw ->
       let limiter = Limiter.create ~sw max_fibers in
       let rec aux = function
         | [] -> []
@@ -268,7 +237,7 @@ module List = struct
     match items with
     | [] -> ()    (* Avoid creating a switch in the simple case *)
     | items ->
-      Switch.run ~name:"iter" @@ fun sw ->
+      Switch.run @@ fun sw ->
       let limiter = Limiter.create ~sw max_fibers in
       let rec aux = function
         | [] -> ()
