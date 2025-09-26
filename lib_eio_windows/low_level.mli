@@ -1,14 +1,14 @@
 (** This module provides an effects-based API for calling POSIX functions.
 
-    Normally it's better to use the cross-platform {!Eio} APIs instead,
-    which uses these functions automatically where appropriate.
+Normally it's better to use the cross-platform {!Eio} APIs instead,
+which uses these functions automatically where appropriate.
 
-    These functions mostly copy the POSIX APIs directly, except that:
+These functions mostly copy the POSIX APIs directly, except that:
 
-    + They suspend the calling fiber instead of returning [EAGAIN] or similar.
-    + They handle [EINTR] by automatically restarting the call.
-    + They wrap {!Unix.file_descr} in {!Fd}, to avoid use-after-close bugs.
-    + They attach new FDs to switches, to avoid resource leaks. *)
++ They suspend the calling fiber instead of returning [EAGAIN] or similar.
++ They handle [EINTR] by automatically restarting the call.
++ They wrap {!Unix.file_descr} in {!Fd}, to avoid use-after-close bugs.
++ They attach new FDs to switches, to avoid resource leaks. *)
 
 open Eio.Std
 
@@ -51,7 +51,7 @@ val rename : ?old_dir:fd -> string -> ?new_dir:fd -> string -> unit
 
 val symlink : link_to:string -> fd option -> string -> unit
 (** [symlink ~link_to dir path] will create a new symlink at [dir / path]
-    linking to [link_to]. *)
+linking to [link_to]. *)
 
 val readdir : string -> string array
 
@@ -64,65 +64,65 @@ val pwritev : file_offset:Optint.Int63.t -> fd -> Cstruct.t array -> int
 val pipe : sw:Switch.t -> fd * fd
 
 module Flags : sig
-  module Open : sig
-    type t
+module Open : sig
+type t
 
-    val rdonly : t
-    val rdwr : t
-    val wronly : t
-    val creat : t
-    val excl : t
-    val trunc : t
+val rdonly : t
+val rdwr : t
+val wronly : t
+val creat : t
+val excl : t
+val trunc : t
 
-    val generic_read : t
-    val generic_write : t
-    val synchronise : t
-    val append : t
+val generic_read : t
+val generic_write : t
+val synchronise : t
+val append : t
 
-    val empty : t
-    val ( + ) : t -> t -> t
-  end
+val empty : t
+val ( + ) : t -> t -> t
+end
 
-  module Disposition : sig
-    type t
+module Disposition : sig
+type t
 
-    val supersede : t
-    (** If the file already exists, replace it with the given file.
-        If it does not, create the given file. *)
+val supersede : t
+(** If the file already exists, replace it with the given file.
+If it does not, create the given file. *)
 
-    val create : t
-    (** Create the file, if it already exists fail. *)
+val create : t
+(** Create the file, if it already exists fail. *)
 
-    val open_ : t
-    (** If the file already exists, open it otherwise fail. *)
+val open_ : t
+(** If the file already exists, open it otherwise fail. *)
 
-    val open_if : t
-    (** If the file already exists, open it otherwise create it. *)
+val open_if : t
+(** If the file already exists, open it otherwise create it. *)
 
-    val overwrite : t
-    (** If the file already exists, open it and overwrite it otherwise fail. *)
+val overwrite : t
+(** If the file already exists, open it and overwrite it otherwise fail. *)
 
-    val overwrite_if : t
-    (** If the file already exists, open it and overwrite it otherwise create it. *)
-  end
+val overwrite_if : t
+(** If the file already exists, open it and overwrite it otherwise create it. *)
+end
 
-  module Create : sig
-    type t
+module Create : sig
+type t
 
-    val directory : t
-    (** Create a directory. *)
-    
-    val non_directory : t
-    (** Create something that is not a directory. *)
+val directory : t
+(** Create a directory. *)
 
-    val no_intermediate_buffering : t
+val non_directory : t
+(** Create something that is not a directory. *)
 
-    val write_through : t
+val no_intermediate_buffering : t
 
-    val sequential_only : t
+val write_through : t
 
-    val ( + ) : t -> t -> t
-  end
+val sequential_only : t
+
+val ( + ) : t -> t -> t
+end
 end
 
 val openat : ?dirfd:fd -> ?nofollow:bool-> sw:Switch.t -> string -> Flags.Open.t -> Flags.Disposition.t -> Flags.Create.t -> fd

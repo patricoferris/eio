@@ -1,17 +1,17 @@
 (** Effects based parallel IO for OCaml.
 
-    Eio provides support for concurrency (juggling many tasks) and
-    parallelism (using multiple CPU cores for performance).
+Eio provides support for concurrency (juggling many tasks) and
+parallelism (using multiple CPU cores for performance).
 
-    It provides facilities for creating and coordinating fibers (light-weight
-    threads) and domains (for parallel processing), as well as interfaces for
-    interacting with resources provided by the operating system.
+It provides facilities for creating and coordinating fibers (light-weight
+threads) and domains (for parallel processing), as well as interfaces for
+interacting with resources provided by the operating system.
 
-    These features must be used within an {e event loop},
-    provided by an Eio {e backend}.
-    Applications can use {!Eio_main.run} to run a suitable loop.
+These features must be used within an {e event loop},
+provided by an Eio {e backend}.
+Applications can use {!Eio_main.run} to run a suitable loop.
 
-    See {{:https://github.com/ocaml-multicore/eio}} for a tutorial. *)
+See {{:https://github.com/ocaml-multicore/eio}} for a tutorial. *)
 
 (** Commonly used standard features. This module is intended to be [open]ed. *)
 module Std = Std
@@ -63,26 +63,26 @@ module Executor_pool = Executor_pool
 (** {1 Errors and debugging} *)
 
 val traceln :
-  ?__POS__:string * int * int * int ->
-  ('a, Format.formatter, unit, unit) format4 -> 'a
+?__POS__:string * int * int * int ->
+('a, Format.formatter, unit, unit) format4 -> 'a
 (** [traceln fmt] outputs a debug message (typically to stderr).
 
-    Trace messages are printed by default and do not require logging to be configured first.
-    The message is printed with a newline, and is flushed automatically.
-    [traceln] is intended for quick debugging rather than for production code.
+Trace messages are printed by default and do not require logging to be configured first.
+The message is printed with a newline, and is flushed automatically.
+[traceln] is intended for quick debugging rather than for production code.
 
-    Unlike most Eio operations, [traceln] will never switch to another fiber;
-    if the OS is not ready to accept the message then the whole domain waits.
+Unlike most Eio operations, [traceln] will never switch to another fiber;
+if the OS is not ready to accept the message then the whole domain waits.
 
-    It is safe to call [traceln] from multiple domains at the same time.
-    Each line will be written atomically.
+It is safe to call [traceln] from multiple domains at the same time.
+Each line will be written atomically.
 
-    Examples:
-    {[
-      traceln "x = %d" x;
-      traceln "x = %d" x ~__POS__;   (* With location information *)
-    ]}
-    @param __POS__ Display [__POS__] as the location of the [traceln] call. *)
+Examples:
+{[
+traceln "x = %d" x;
+traceln "x = %d" x ~__POS__;   (* With location information *)
+]}
+@param __POS__ Display [__POS__] as the location of the [traceln] call. *)
 
 (** Eio exceptions. *)
 module Exn = Eio__core.Exn
@@ -91,51 +91,51 @@ exception Io of Exn.err * Exn.context
 
 (** Control over debugging. *)
 module Debug : sig
-  (** Example:
-      {[
-        open Eio.Std
+(** Example:
+{[
+open Eio.Std
 
-        let my_traceln = {
-          Eio.Debug.traceln = fun ?__POS__:_ fmt -> Fmt.epr ("[custom-trace] " ^^ fmt ^^ "@.")
-        }
+let my_traceln = {
+Eio.Debug.traceln = fun ?__POS__:_ fmt -> Fmt.epr ("[custom-trace] " ^^ fmt ^^ "@.")
+}
 
-        let () =
-          Eio_main.run @@ fun env ->
-          let debug = Eio.Stdenv.debug env in
-          Fiber.with_binding debug#traceln my_traceln @@ fun () ->
-          traceln "Traced with custom function"
-      ]}
+let () =
+Eio_main.run @@ fun env ->
+let debug = Eio.Stdenv.debug env in
+Fiber.with_binding debug#traceln my_traceln @@ fun () ->
+traceln "Traced with custom function"
+]}
 
-      This will output:
+This will output:
 
-      {[ [custom-trace] Traced with custom function ]}
-  *)
+{[ [custom-trace] Traced with custom function ]}
+*)
 
-  type traceln = Eio__core.Private.Debug.traceln = {
-    traceln : 'a. ?__POS__:string * int * int * int -> ('a, Format.formatter, unit, unit) format4 -> 'a;
-  } [@@unboxed]
-  (** A function that writes trace logging to some trace output.
+type traceln = Eio__core.Private.Debug.traceln = {
+traceln : 'a. ?__POS__:string * int * int * int -> ('a, Format.formatter, unit, unit) format4 -> 'a;
+} [@@unboxed]
+(** A function that writes trace logging to some trace output.
 
-      It must not switch fibers, as tracing must not affect scheduling.
-      If the system is not ready to receive the trace output,
-      the whole domain must block until it is. *)
+It must not switch fibers, as tracing must not affect scheduling.
+If the system is not ready to receive the trace output,
+the whole domain must block until it is. *)
 
-  val with_trace_prefix : (Format.formatter -> unit) -> (unit -> 'a) -> 'a
-  (** [with_trace_prefix fmt fn] runs [fn ()] with a traceln that outputs [fmt] before each message. *)
+val with_trace_prefix : (Format.formatter -> unit) -> (unit -> 'a) -> 'a
+(** [with_trace_prefix fmt fn] runs [fn ()] with a traceln that outputs [fmt] before each message. *)
 
-  type t = <
-    traceln : traceln Fiber.key;
-  >
-  (** Fiber keys used to control debugging. Use {!Stdenv.debug} to get this. *)
+type t = <
+traceln : traceln Fiber.key;
+>
+(** Fiber keys used to control debugging. Use {!Stdenv.debug} to get this. *)
 end
 
 (** {1 Cross-platform OS API}
 
-    The general pattern here is that each type of resource has a set of functions for using it,
-    plus a provider ([Pi]) module to allow defining your own implementations.
+The general pattern here is that each type of resource has a set of functions for using it,
+plus a provider ([Pi]) module to allow defining your own implementations.
 
-    The system resources are available from the environment argument provided by your event loop
-    (e.g. {!Eio_main.run}). *)
+The system resources are available from the environment argument provided by your event loop
+(e.g. {!Eio_main.run}). *)
 
 (** Defines the base resource type. *)
 module Resource = Resource
@@ -144,14 +144,14 @@ module Resource = Resource
 
 (** A flow can be used to read or write bytes. *)
 module Flow : sig
-  include module type of Flow (** @inline *)
+include module type of Flow (** @inline *)
 
-  (** {2 Convenience wrappers} *)
+(** {2 Convenience wrappers} *)
 
-  val read_all : _ source -> string
-  (** [read_all src] is a convenience wrapper to read an entire flow.
+val read_all : _ source -> string
+(** [read_all src] is a convenience wrapper to read an entire flow.
 
-      It is the same as [Buf_read.(parse_exn take_all) src ~max_size:max_int] *)
+It is the same as [Buf_read.(parse_exn take_all) src ~max_size:max_int] *)
 end
 
 (** Buffered input and parsing. *)
@@ -190,94 +190,94 @@ module Time = Time
 
 (** The standard environment of a process. *)
 module Stdenv : sig
-  (** All access to the outside world comes from running the event loop,
-      which provides an environment (e.g. an {!Eio_unix.Stdenv.base}).
+(** All access to the outside world comes from running the event loop,
+which provides an environment (e.g. an {!Eio_unix.Stdenv.base}).
 
-      Example:
-      {[
-        let () =
-          Eio_main.run @@ fun env ->
-          Eio.Path.with_open_dir env#fs "/srv/www" @@ fun www ->
-          serve_files www
-            ~net:env#net
-      ]}
-  *)
+Example:
+{[
+let () =
+Eio_main.run @@ fun env ->
+Eio.Path.with_open_dir env#fs "/srv/www" @@ fun www ->
+serve_files www
+~net:env#net
+]}
+*)
 
-  (** {1 Standard streams}
+(** {1 Standard streams}
 
-      To use these, see {!Flow}. *)
+To use these, see {!Flow}. *)
 
-  val stdin  : <stdin  : _ Flow.source as 'a; ..> -> 'a
-  val stdout : <stdout : _ Flow.sink   as 'a; ..> -> 'a
-  val stderr : <stderr : _ Flow.sink   as 'a; ..> -> 'a
+val stdin  : <stdin  : _ Flow.source as 'a; ..> -> 'a
+val stdout : <stdout : _ Flow.sink   as 'a; ..> -> 'a
+val stderr : <stderr : _ Flow.sink   as 'a; ..> -> 'a
 
-  (** {1 File-system access}
+(** {1 File-system access}
 
-      To use these, see {!Path}. *)
+To use these, see {!Path}. *)
 
-  val cwd : <cwd : _ Path.t as 'a; ..> -> 'a
-  (** [cwd t] is the current working directory of the process (this may change
-      over time if the process does a "chdir" operation, which is not recommended). *)
+val cwd : <cwd : _ Path.t as 'a; ..> -> 'a
+(** [cwd t] is the current working directory of the process (this may change
+over time if the process does a "chdir" operation, which is not recommended). *)
 
-  val fs : <fs : _ Path.t as 'a; ..> -> 'a
-  (** [fs t] is the process's full access to the filesystem.
+val fs : <fs : _ Path.t as 'a; ..> -> 'a
+(** [fs t] is the process's full access to the filesystem.
 
-      Paths can be absolute or relative (to the current working directory).
-      Using relative paths with this is similar to using them with {!cwd},
-      except that this will follow ".." and symlinks to other parts of the filesystem.
+Paths can be absolute or relative (to the current working directory).
+Using relative paths with this is similar to using them with {!cwd},
+except that this will follow ".." and symlinks to other parts of the filesystem.
 
-      [fs] is useful for handling paths passed in by the user. *)
+[fs] is useful for handling paths passed in by the user. *)
 
-  (** {1 Network}
+(** {1 Network}
 
-      To use this, see {!Net}.
-  *)
+To use this, see {!Net}.
+*)
 
-  val net : <net : _ Net.t as 'a; ..> -> 'a
-  (** [net t] gives access to the process's network namespace. *)
+val net : <net : _ Net.t as 'a; ..> -> 'a
+(** [net t] gives access to the process's network namespace. *)
 
-  (** {1 Processes }
+(** {1 Processes }
 
-      To use this, see {!Process}.
-  *)
+To use this, see {!Process}.
+*)
 
-  val process_mgr : <process_mgr : _ Process.mgr as 'a; ..> -> 'a
-  (** [process_mgr t] allows you to manage child processes. *)
+val process_mgr : <process_mgr : _ Process.mgr as 'a; ..> -> 'a
+(** [process_mgr t] allows you to manage child processes. *)
 
-  (** {1 Domains (using multiple CPU cores)}
+(** {1 Domains (using multiple CPU cores)}
 
-      To use this, see {!Domain_manager}.
-  *)
+To use this, see {!Domain_manager}.
+*)
 
-  val domain_mgr : <domain_mgr : _ Domain_manager.t as 'a; ..> -> 'a
-  (** [domain_mgr t] allows running code on other cores. *)
+val domain_mgr : <domain_mgr : _ Domain_manager.t as 'a; ..> -> 'a
+(** [domain_mgr t] allows running code on other cores. *)
 
-  (** {1 Time}
+(** {1 Time}
 
-      To use this, see {!Time}.
-  *)
+To use this, see {!Time}.
+*)
 
-  val clock : <clock : _ Time.clock as 'a; ..> -> 'a
-  (** [clock t] is the system clock (used to get the current time and date). *)
+val clock : <clock : _ Time.clock as 'a; ..> -> 'a
+(** [clock t] is the system clock (used to get the current time and date). *)
 
-  val mono_clock : <mono_clock : _ Time.Mono.t as 'a; ..> -> 'a
-  (** [mono_clock t] is a monotonic clock (used for measuring intervals). *)
+val mono_clock : <mono_clock : _ Time.Mono.t as 'a; ..> -> 'a
+(** [mono_clock t] is a monotonic clock (used for measuring intervals). *)
 
-  (** {1 Randomness} *)
+(** {1 Randomness} *)
 
-  val secure_random : <secure_random : _ Flow.source as 'a; ..> -> 'a
-  (** [secure_random t] is an infinite source of random bytes suitable for cryptographic purposes. *)
+val secure_random : <secure_random : _ Flow.source as 'a; ..> -> 'a
+(** [secure_random t] is an infinite source of random bytes suitable for cryptographic purposes. *)
 
-  (** {1 Debugging} *)
+(** {1 Debugging} *)
 
-  val debug : <debug : <Debug.t; ..> as 'a; ..> -> 'a
-  (** [debug t] provides privileged controls for debugging. *)
+val debug : <debug : <Debug.t; ..> as 'a; ..> -> 'a
+(** [debug t] provides privileged controls for debugging. *)
 
-  val backend_id : <backend_id:string; ..> -> string
-  (** [backend_id t] provides the name of the backend being used.
+val backend_id : <backend_id:string; ..> -> string
+(** [backend_id t] provides the name of the backend being used.
 
-      The possible values are the same as the possible values of the "EIO_BACKEND"
-      environment variable used by {!Eio_main.run}. *)
+The possible values are the same as the possible values of the "EIO_BACKEND"
+environment variable used by {!Eio_main.run}. *)
 end
 
 (** {1 Provider API for OS schedulers} *)

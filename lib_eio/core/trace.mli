@@ -7,7 +7,7 @@ val mint_id : unit -> id
 (** [mint_id ()] is a fresh unique [id]. *)
 
 (** {2 Recording events}
-    Libraries and applications can use these functions to make the traces more useful. *)
+Libraries and applications can use these functions to make the traces more useful. *)
 
 val log : string -> unit
 (** [log msg] attaches text [msg] to the current fiber. *)
@@ -22,7 +22,7 @@ val suspend_fiber : string -> unit
 (** [suspend_fiber op] records that the current fiber is now suspended waiting for [op]. *)
 
 (** {2 Recording system events}
-    These are normally only called by the scheduler. *)
+These are normally only called by the scheduler. *)
 
 val create_fiber : cc:id -> id -> unit
 (** [create_fiber ~cc id] records the creation of fiber [id] in context [cc]. *)
